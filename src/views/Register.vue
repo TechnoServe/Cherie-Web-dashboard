@@ -5,7 +5,7 @@
   <main class="contsdainer-fluid">
     <div class="row">
       <div class="col-6">
-        <img src="login_img.png" alt="">
+        <img src="/login_img.png" alt="">
       </div>
       <div class="col-6 bg-light">
         <div class="bg-white p-5 login-box">
