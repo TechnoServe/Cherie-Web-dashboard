@@ -62,9 +62,9 @@
                   <th>Overripe</th>
                 </tr>
                 <tr>
-                  <td>{{Math.round(country.ripe/country.artifacts)}}</td>
-                  <td>{{Math.round(country.underripe/country.artifacts)}}</td>
-                  <td>{{Math.round(country.overripe/country.artifacts)}}</td>
+                  <td>{{Math.round(country.ripe/country.artifacts)}}%</td>
+                  <td>{{Math.round(country.underripe/country.artifacts)}}%</td>
+                  <td>{{Math.round(country.overripe/country.artifacts)}}%</td>
                 </tr>
               </table>
             </div>
@@ -74,14 +74,14 @@
       <div class="col-md-9">
         <div class="row">
           <div class="col-6">
-            <select class="form-select" v-model="filterCounty">
-              <option :value="null" selected>Select Country</option>
+            <select class="form-select" v-model="filterCounty" @change="getCountryBounds(filterCounty)">
+              <option :value="null" selected>All Countries</option>
               <option :value="key" v-for="(_, key) in countryStats" :key="key" >{{key}}</option>
             </select>
           </div>
           <div class="col-4 offset-2">
             <select class="form-select" v-model="filterYear">
-              <option :value="null" selected>Select Year</option>
+              <option :value="null" selected>Lifetime</option>
               <option :value="year" v-for="(year, key) in Object.keys(yearStats)" :key="key" >{{year}}</option>
             </select>
           </div>
@@ -97,6 +97,12 @@
             :height="400"
           ></Line>
         </div>
+
+        <!-- Map -->
+        <div class="container">
+          <h5>Map Representation</h5>
+          <div id="mapid" class="container" style="height:450px"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -105,15 +111,22 @@
 <script>
   import { Line, } from 'vue-chartjs'
   import moment from 'moment'
+  import leaflet from 'leaflet'
+  import 'leaflet.markercluster';
+  import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
   import Chart from 'chart.js/auto'
   import LayoutDefault from './layouts/LayoutDefault.vue'
   import {db} from "../js/firebase"
+  import boundaries from "../js/countries";
   import { collectionGroup, getDocs } from "firebase/firestore";  
   export default{
   components: { Line },
   data(){
     return {
       firebaseData: null,
+      mapid:null,
+      layer:null,
+      markers:null,
       rawData: null,
       chartData:  null,
       chartOptions: {
@@ -175,21 +188,44 @@
   methods:{
     async getData() {
       const querySnapshot = await getDocs(collectionGroup(db, "predictions"));
-      
+      this.markers = []
       console.log(querySnapshot)
 
       let firebaseData = []
       querySnapshot.forEach((doc) => {
         let data = doc.data()
         firebaseData.push(data)
+        if(data.coordinates){
+          var coordinates_ = data.coordinates.split(',').map(str => parseFloat(str));
+          this.markers.push(coordinates_)
+        }
       })
 
       // Sort data
       firebaseData = firebaseData.sort((prevArtifact, currentArtifact) =>  prevArtifact.predictedAt-currentArtifact.predictedAt)
 
       this.rawData = firebaseData
-
+      console.log(JSON.stringify(firebaseData))
       this.structureData()
+
+
+      //Add map
+      this.mapid = leaflet.map('mapid')
+      this.mapid.fitWorld().setZoom(2);
+      
+
+      leaflet.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(this.mapid);
+      // leaflet.geoJSON(boundaries).addTo(this.mapid);
+
+      var pins = leaflet.markerClusterGroup();
+      for(var i=0;i<this.markers.length;i++){
+      var pin = leaflet.marker(this.markers[i])
+        pins.addLayer(pin)
+      }
+      this.mapid.addLayer(pins)
     },
     structureData(){
       this.total_artifacts = 0
@@ -200,6 +236,7 @@
         overripe: 0,
       }
       let country = {};
+      
       this.rawData.forEach((data) => {
         let region = data.region
 
@@ -301,11 +338,41 @@
     formatYear(strDate){
       return moment(new Date(strDate)).format('YYYY')
     },
+    getCountryBounds(country_) {
+      if(this.layer){
+      this.mapid.removeLayer(this.layer)
+     }
+    if(country_ === "Ethiopia" || country_ === "Honduras" || country_ === "Guatemala"){
+      try {
+      const countryFeature = boundaries.features.find(feature => feature.properties.ADMIN === country_);
+
+      if (countryFeature) {
+        const countryBounds = leaflet.geoJSON(countryFeature.geometry).getBounds();
+        var lastLayer = leaflet.geoJSON(countryFeature).addTo(this.mapid);
+        this.zoomToCountry(countryBounds);
+        this.layer = lastLayer
+      }
+    } catch (error) {
+      console.error(error);
+    }
+    
+    }
+    else{
+      this.mapid.fitWorld().setZoom(2)
+    }
+    
+  },
+  zoomToCountry(bounds) {
+    this.mapid.fitBounds(bounds);
+  }
   }
   }
 </script>
 
 <style lang="scss" scoped>
+  h5{
+    margin:30px 0 30px 0;
+  }
   .prof-items img{
     max-width: 50px;
   }

@@ -58,6 +58,7 @@
               <th>Ripe</th>
               <th>Underripe</th>
               <th>Overrripe</th>
+              <th>Rating</th>
               <th>Predicted At</th>
               <th>View</th>
             </tr>
@@ -69,6 +70,14 @@
               <td>{{Math.round(cherry.ripe)}}</td>
               <td>{{Math.round(cherry.underripe)}}</td>
               <td>{{Math.round(cherry.overripe)}}</td>
+              <td>
+                <template v-if="cherry.rating">
+                  {{cherry.rating * 20 + '%'}}
+                </template>
+                <template v-else>
+                  -
+                </template>
+              </td>
               <td>{{formatDate(cherry.predictedAt)}}</td>
               <td>
                 <a class="btn btn-primary" :href="cherry.imageUri" target="_blank">View</a>
@@ -78,6 +87,7 @@
         </table>
       </div>
     </div>
+
   </main>
 </template>
 
@@ -85,13 +95,17 @@
 import DataTable from "@andresouzaabreu/vue-data-table";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@andresouzaabreu/vue-data-table/dist/DataTable.css";
-  import moment from 'moment'
-  import { db } from "../js/firebase"
-  import { collectionGroup, query, orderBy, getDocs } from "firebase/firestore"; 
+import moment from 'moment'
+import leaflet from 'leaflet'
+import 'leaflet.markercluster';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import { db } from "../js/firebase"
+import { collectionGroup, query, orderBy, getDocs } from "firebase/firestore"; 
   export default{
     data(){
       return {
         artifacts: null,
+        
         total_artifacts: 0,
         rawData: null,
         underripe_min: null,
@@ -109,6 +123,7 @@ import "@andresouzaabreu/vue-data-table/dist/DataTable.css";
       }
     },
     components: {DataTable},
+    
     async mounted(){
       console.log(this.$route.query)
      
@@ -168,6 +183,7 @@ import "@andresouzaabreu/vue-data-table/dist/DataTable.css";
       },
     },
     methods:{
+      
       async getArtifacts() {
         const querySnapshot = await getDocs(collectionGroup(db, "predictions"));
         this.rawData = querySnapshot
@@ -182,7 +198,6 @@ import "@andresouzaabreu/vue-data-table/dist/DataTable.css";
         this.rawData.forEach((doc) => {
           let data = doc.data()
           let region = data.region
-
           // get countries list only on initial run
           if(!this.initialRun){
             if(this.countryList.indexOf(region) < 0){
@@ -234,7 +249,7 @@ import "@andresouzaabreu/vue-data-table/dist/DataTable.css";
             }
           } 
 
-          
+        
 
           country[region].artifacts += 1
           this.total_artifacts += 1
@@ -243,7 +258,7 @@ import "@andresouzaabreu/vue-data-table/dist/DataTable.css";
           country[region].ripe += data.ripe
           this.countryStats = country
         })
-
+        
         this.artifacts = artifactsData, 2000
         const event = new Event('build');
         document.dispatchEvent(event);
